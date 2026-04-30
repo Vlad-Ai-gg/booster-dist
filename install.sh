@@ -16,11 +16,13 @@
 set -euo pipefail
 
 # ── Configuration ──────────────────────────────────────────────────────────
-# Stable URL — github.com/.../releases/latest/download always resolves to the
-# most recent published release's asset. Bump the release tag without touching
-# this URL or the curl one-liner.
+# Replace this URL with wherever your team hosts the artifacts (S3, Nextcloud,
+# internal HTTP server, etc.). The script expects two files at this base:
+#   <BASE>/Booster_aarch64.dmg   — Apple Silicon
+#   <BASE>/Booster_x64.dmg       — Intel
 BASE_URL="${BOOSTER_BASE_URL:-https://github.com/Vlad-Ai-gg/booster-dist/releases/latest/download}"
-APP_NAME="Booster.app"
+APP_NAME="Booster-Voice.app"
+LEGACY_APP_NAME="Booster.app"
 INSTALL_DIR="/Applications"
 
 # ── Sanity checks ──────────────────────────────────────────────────────────
@@ -49,10 +51,21 @@ fi
 
 # ── Quit any running instance ──────────────────────────────────────────────
 # cp -R into a busy bundle fails with "Resource busy"; close cleanly first.
-if pgrep -x Booster >/dev/null 2>&1; then
-  echo "Closing running Booster…"
-  osascript -e 'tell application "Booster" to quit' >/dev/null 2>&1 || true
-  sleep 1
+# Match both the new (Booster-Voice) and legacy (Booster) process names so
+# upgrades from older installs don't trip over a still-running old binary.
+for proc in Booster-Voice Booster; do
+  if pgrep -x "$proc" >/dev/null 2>&1; then
+    echo "Closing running $proc…"
+    osascript -e "tell application \"$proc\" to quit" >/dev/null 2>&1 || true
+    sleep 1
+  fi
+done
+
+# Remove legacy bundle so users don't end up with two copies in /Applications.
+legacy_dest="$INSTALL_DIR/$LEGACY_APP_NAME"
+if [[ -d "$legacy_dest" ]]; then
+  echo "Removing legacy $LEGACY_APP_NAME"
+  rm -rf "$legacy_dest" 2>/dev/null || sudo rm -rf "$legacy_dest"
 fi
 
 # ── Mount & copy ───────────────────────────────────────────────────────────
