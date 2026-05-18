@@ -68,6 +68,54 @@ if [[ -d "$legacy_dest" ]]; then
   rm -rf "$legacy_dest" 2>/dev/null || sudo rm -rf "$legacy_dest"
 fi
 
+# ── Full wipe of previous install (per-user state + TCC grants) ────────────
+# This is what makes the one-line curl behave like a true fresh install:
+# every per-user file the app may have written is removed and the TCC grants
+# are reset so macOS will re-prompt for Microphone + Accessibility on first
+# launch. Destructive on purpose — notes, settings, API keys, and the auth
+# session are wiped along with caches.
+#
+# Bundle identifier is com.boosta.booster (see tauri.conf.json).
+# Tauri's app_data_dir on macOS lives under ~/Library/Application Support/<identifier>.
+BUNDLE_ID="com.boosta.booster"
+
+echo "Resetting macOS permission grants for $BUNDLE_ID…"
+# tccutil exits non-zero if the bundle has no grant yet — that's expected on
+# a brand-new machine, so swallow errors. Reset every service the app uses.
+tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true
+tccutil reset Microphone   "$BUNDLE_ID" >/dev/null 2>&1 || true
+
+echo "Removing previous Booster user data and caches…"
+# Cover the canonical bundle-id paths plus the product-name variants that
+# Tauri/WKWebView/macOS sometimes use, plus the legacy "Booster" name from
+# pre-rename builds. Glob patterns expand inside the loop body.
+paths=(
+  "$HOME/Library/Application Support/com.boosta.booster"
+  "$HOME/Library/Application Support/Booster-Voice"
+  "$HOME/Library/Application Support/Booster"
+  "$HOME/Library/Caches/com.boosta.booster"
+  "$HOME/Library/Caches/Booster-Voice"
+  "$HOME/Library/Caches/Booster"
+  "$HOME/Library/WebKit/com.boosta.booster"
+  "$HOME/Library/HTTPStorages/com.boosta.booster"
+  "$HOME/Library/HTTPStorages/com.boosta.booster.binarycookies"
+  "$HOME/Library/Saved Application State/com.boosta.booster.savedState"
+  "$HOME/Library/Logs/Booster-Voice"
+  "$HOME/Library/Logs/Booster"
+  "$HOME/Library/Logs/com.boosta.booster"
+  "$HOME/Library/Preferences/com.boosta.booster.plist"
+  "$HOME/Library/Preferences/com.boosta.booster.binarycookies"
+)
+for d in "${paths[@]}"; do
+  if [[ -e "$d" ]]; then
+    rm -rf "$d" 2>/dev/null || true
+  fi
+done
+
+# cfprefsd caches plist values in memory and will re-materialize the file we
+# just deleted unless we kick it. Safe to kill — launchd respawns it instantly.
+killall cfprefsd >/dev/null 2>&1 || true
+
 # ── Mount & copy ───────────────────────────────────────────────────────────
 mkdir -p "$work/mnt"
 hdiutil attach "$work/booster.dmg" -nobrowse -mountpoint "$work/mnt" -quiet
