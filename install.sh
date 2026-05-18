@@ -55,7 +55,7 @@ fi
 # upgrades from older installs don't trip over a still-running old binary.
 for proc in Booster-Voice Booster; do
   if pgrep -x "$proc" >/dev/null 2>&1; then
-    echo "Closing running $proc…"
+    echo "Closing running ${proc}..."
     osascript -e "tell application \"$proc\" to quit" >/dev/null 2>&1 || true
     sleep 1
   fi
@@ -79,13 +79,16 @@ fi
 # Tauri's app_data_dir on macOS lives under ~/Library/Application Support/<identifier>.
 BUNDLE_ID="com.boosta.booster"
 
-echo "Resetting macOS permission grants for $BUNDLE_ID…"
+# Brace the variable + ASCII dots: avoids bash 3.2 parser quirks where the
+# multi-byte ellipsis adjacent to $VAR (under set -u) makes bash report
+# "VAR?: unbound variable" on non-UTF-8 locales.
+echo "Resetting macOS permission grants for ${BUNDLE_ID}..."
 # tccutil exits non-zero if the bundle has no grant yet — that's expected on
 # a brand-new machine, so swallow errors. Reset every service the app uses.
 tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true
 tccutil reset Microphone   "$BUNDLE_ID" >/dev/null 2>&1 || true
 
-echo "Removing previous Booster user data and caches…"
+echo "Removing previous Booster user data and caches..."
 # Cover the canonical bundle-id paths plus the product-name variants that
 # Tauri/WKWebView/macOS sometimes use, plus the legacy "Booster" name from
 # pre-rename builds. Glob patterns expand inside the loop body.
@@ -138,5 +141,5 @@ cp -R "$src" "$INSTALL_DIR/" 2>/dev/null || sudo cp -R "$src" "$INSTALL_DIR/"
 
 hdiutil detach "$work/mnt" -quiet
 
-echo "Done. Launching…"
+echo "Done. Launching..."
 open "$dest"
