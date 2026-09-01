@@ -108,6 +108,19 @@ paths=(
   "$HOME/Library/Logs/com.boosta.booster"
   "$HOME/Library/Preferences/com.boosta.booster.plist"
   "$HOME/Library/Preferences/com.boosta.booster.binarycookies"
+  # The login item. It MUST be wiped together with the settings above, because
+  # those two are the same fact stored twice: settings.json holds the intent,
+  # this plist holds the registration. Removing only the settings left them
+  # disagreeing — and the app resolves that disagreement destructively. On the
+  # next launch reconcile_auto_start() reads the now-absent settings.json as a
+  # successful "auto_start: false" (settings_store::load returns Ok(default) for
+  # a missing file, not Err), sees the plist still registered, and calls
+  # disable() -> fs::remove_file. So autostart silently switched itself off on
+  # the first launch after every reinstall, with the checkbox then showing OFF
+  # and no indication anything had been removed. Wiping both here leaves them
+  # consistent, which is what a clean install is supposed to mean.
+  "$HOME/Library/LaunchAgents/Booster-Voice.plist"
+  "$HOME/Library/LaunchAgents/Booster.plist"
 )
 for d in "${paths[@]}"; do
   if [[ -e "$d" ]]; then
